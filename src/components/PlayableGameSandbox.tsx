@@ -190,14 +190,22 @@ export default function PlayableGameSandbox({ imageUrl, assetName }: PlayableGam
       }
       ctx.shadowBlur = 0;
 
-      // Draw Player Asset
+      // Draw Player Asset safely
       ctx.save();
-      if (player.facing === 'left') {
-        ctx.translate(player.x + player.width, player.y);
-        ctx.scale(-1, 1);
-        ctx.drawImage(charImg, 0, 0, player.width, player.height);
+      if (charImg.complete && charImg.naturalWidth !== 0) {
+        if (player.facing === 'left') {
+          ctx.translate(player.x + player.width, player.y);
+          ctx.scale(-1, 1);
+          ctx.drawImage(charImg, 0, 0, player.width, player.height);
+        } else {
+          ctx.drawImage(charImg, player.x, player.y, player.width, player.height);
+        }
       } else {
-        ctx.drawImage(charImg, player.x, player.y, player.width, player.height);
+        // Fallback player avatar block
+        ctx.fillStyle = '#06b6d4';
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+        ctx.strokeStyle = '#ffffff';
+        ctx.strokeRect(player.x, player.y, player.width, player.height);
       }
       ctx.restore();
 
