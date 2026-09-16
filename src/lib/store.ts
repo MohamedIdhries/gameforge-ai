@@ -94,6 +94,10 @@ export function toggleFavorite(assetId: string): GameAsset | null {
 export function resolvePromptImageUrl(prompt: string, assetType: AssetType, style: AssetStyle): string {
   const lower = prompt.toLowerCase();
   
+  if (lower.includes('naruto') || lower.includes('ninja') || lower.includes('shinobi') || lower.includes('rasengan')) {
+    return 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1024&q=80&auto=format&fit=crop';
+  }
+
   if (lower.includes('iron man') || lower.includes('nanosuit') || lower.includes('avenger') || lower.includes('stark')) {
     return 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=1024&q=80&auto=format&fit=crop';
   }
