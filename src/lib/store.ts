@@ -123,11 +123,13 @@ export function createNewAsset(params: {
   assetType: AssetType;
   style: AssetStyle;
   aspectRatio: AspectRatio;
+  /** Real image URL from the generation API. Falls back to prompt-matched stock image when omitted. */
+  imageUrl?: string;
 }): GameAsset {
   const projects = getStoredProjects();
   const proj = projects.find(p => p.id === params.projectId) || projects[0];
 
-  const imageUrl = resolvePromptImageUrl(params.prompt, params.assetType, params.style);
+  const imageUrl = params.imageUrl ?? resolvePromptImageUrl(params.prompt, params.assetType, params.style);
 
   const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
   const publicId = `gameforge/${params.assetType.toLowerCase().replace(/[^a-z]/g, '')}_${uniqueSuffix}`;
@@ -182,6 +184,9 @@ export function createNewAsset(params: {
 
 /**
  * Creates a complete "Asset Pack" in one click! (Hackathon Winning Feature)
+ *
+ * @param imageUrls - Optional array of real image URLs from the generation API,
+ *   one per pack item. Falls back to prompt-matched stock images when omitted.
  */
 export function createAssetPack(params: {
   projectId: string;
@@ -189,6 +194,7 @@ export function createAssetPack(params: {
   prompt: string;
   assetType: AssetType;
   style: AssetStyle;
+  imageUrls?: string[];
 }): GameAsset[] {
   const packName = params.packName || 'Cyberpunk Warrior Pack';
 
@@ -204,13 +210,13 @@ export function createAssetPack(params: {
       aspectRatio: '1:1' as AspectRatio
     },
     {
-      name: `${packName} - UI Portrait (512x512)`,
+      name: `${packName} - UI Portrait (512×512)`,
       prompt: `${basePrompt}, headshot hero portrait, character icon`,
       type: assetType,
       aspectRatio: '1:1' as AspectRatio
     },
     {
-      name: `${packName} - Inventory Icon (256x256)`,
+      name: `${packName} - Inventory Icon (256×256)`,
       prompt: `${basePrompt}, character inventory gear icon`,
       type: assetType,
       aspectRatio: '1:1' as AspectRatio
@@ -219,14 +225,16 @@ export function createAssetPack(params: {
 
   const generatedPackAssets: GameAsset[] = [];
 
-  for (const item of packItems) {
+  for (let i = 0; i < packItems.length; i++) {
+    const item = packItems[i];
     const asset = createNewAsset({
       projectId: params.projectId,
       name: item.name,
       prompt: item.prompt,
       assetType: item.type,
       style: style,
-      aspectRatio: item.aspectRatio
+      aspectRatio: item.aspectRatio,
+      imageUrl: params.imageUrls?.[i],
     });
     asset.isPack = true;
     asset.packName = packName;

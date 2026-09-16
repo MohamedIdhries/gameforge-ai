@@ -1,4 +1,8 @@
 @import "tailwindcss";
+@source not ".mcp.json";
+@source not ".gitconfig";
+@source not ".bashrc";
+@source not ".zshrc";
 
 :root {
   --background: #080c14;
