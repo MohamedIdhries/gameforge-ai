@@ -340,6 +340,10 @@ function AssetDetailContent() {
                   <img
                     src={getDisplayedImageUrl()}
                     alt={asset.name}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=1024&q=80&auto=format&fit=crop';
+                    }}
                     className={`rounded-2xl object-contain max-h-[380px] shadow-2xl transition-all duration-300 ${
                       activeTab === 'smart_crop' && selectedCropIndex > 0 ? 'w-[240px] h-[240px] object-cover ring-2 ring-purple-500/50' : 'w-full'
                     }`}

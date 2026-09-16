@@ -66,7 +66,7 @@ export default function GameHudSimulator({ imageUrl, assetName, assetType }: Gam
             <div className="flex items-center justify-between border-b border-cyan-500/30 pb-3">
               <div className="flex items-center gap-3">
                 <div className="w-14 h-14 rounded-xl bg-cyan-950 border border-cyan-500/60 p-1 flex items-center justify-center overflow-hidden">
-                  <img src={imageUrl} alt={assetName} className="w-full h-full object-contain" />
+                  <img src={imageUrl} alt={assetName} referrerPolicy="no-referrer" className="w-full h-full object-contain" />
                 </div>
                 <div>
                   <h4 className="text-sm font-extrabold text-white">{assetName}</h4>

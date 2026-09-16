@@ -85,6 +85,7 @@ export default function Hologram3DViewer({ imageUrl, assetName }: Hologram3DView
           <img
             src={imageUrl}
             alt={assetName}
+            referrerPolicy="no-referrer"
             className="w-full h-full object-contain rounded-xl opacity-30 filter blur-md"
             style={{ transform: `translateZ(-${depthIntensity}px) scale(0.95)` }}
           />
@@ -93,6 +94,7 @@ export default function Hologram3DViewer({ imageUrl, assetName }: Hologram3DView
           <img
             src={imageUrl}
             alt={assetName}
+            referrerPolicy="no-referrer"
             className={`w-full h-full object-contain rounded-xl drop-shadow-2xl ${
               wireframe ? 'ring-2 ring-cyan-400 ring-offset-2 ring-offset-slate-950' : ''
             }`}

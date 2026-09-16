@@ -114,6 +114,7 @@ export default function HiggsfieldMotionStudio({ assetName, originalImageUrl }: 
                 <img
                   src={originalImageUrl}
                   alt={assetName}
+                  referrerPolicy="no-referrer"
                   className="max-h-[300px] object-contain rounded-2xl shadow-2xl filter drop-shadow-[0_0_20px_rgba(6,182,212,0.3)] animate-pulse"
                 />
                 
