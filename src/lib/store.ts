@@ -77,6 +77,20 @@ const GENERATED_IMAGE_POOL: Record<string, string[]> = {
   ]
 };
 
+export function toggleFavorite(assetId: string): GameAsset | null {
+  const assets = getStoredAssets();
+  let updatedAsset: GameAsset | null = null;
+  const updated = assets.map((a) => {
+    if (a.id === assetId) {
+      updatedAsset = { ...a, isFavorite: !a.isFavorite };
+      return updatedAsset;
+    }
+    return a;
+  });
+  saveAssets(updated);
+  return updatedAsset;
+}
+
 export function resolvePromptImageUrl(prompt: string, assetType: AssetType, style: AssetStyle): string {
   const lower = prompt.toLowerCase();
   
@@ -114,17 +128,6 @@ export function resolvePromptImageUrl(prompt: string, assetType: AssetType, styl
 
   const pool = GENERATED_IMAGE_POOL[assetType] || GENERATED_IMAGE_POOL.Character;
   return pool[Math.floor(Math.random() * pool.length)];
-}
-
-export function toggleFavorite(assetId: string): boolean {
-  const assets = getStoredAssets();
-  const updated = assets.map((a) => {
-    if (a.id === assetId) return { ...a, isFavorite: !a.isFavorite };
-    return a;
-  });
-  saveAssets(updated);
-  const asset = updated.find((a) => a.id === assetId);
-  return asset?.isFavorite ?? false;
 }
 
 export function createNewAsset(params: {
