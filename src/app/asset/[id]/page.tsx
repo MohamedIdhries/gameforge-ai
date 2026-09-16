@@ -13,7 +13,8 @@ import HiggsfieldMotionStudio from '@/components/HiggsfieldMotionStudio';
 import MultiEngineExportStudio from '@/components/MultiEngineExportStudio';
 import { GameAsset } from '@/types/gameforge';
 import { getStoredAssets, saveAssets } from '@/lib/store';
-import { getOptimizedCloudinaryUrl, getGenerativeVariations, getSmartCropVariants } from '@/lib/cloudinary';
+import { INITIAL_ASSETS } from '@/lib/mock-data';
+import { getOptimizedCloudinaryUrl, getGenerativeVariations, getSmartCropVariants, getBackgroundRemovedUrl } from '@/lib/cloudinary';
 import { ArrowLeft, Wand2, Scissors, Crop, Sparkles, Tag, Check, Copy, Download, Share2, Layers, ShieldCheck, Code, Eye, RefreshCcw, PackageCheck, Box, Gamepad2, Film, Cpu } from 'lucide-react';
 
 function AssetDetailContent() {
@@ -21,10 +22,43 @@ function AssetDetailContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const assetId = params.id as string;
+  const assetId = decodeURIComponent((params?.id as string) || '');
   const isPackFlow = searchParams.get('pack') === 'true';
 
-  const [asset, setAsset] = useState<GameAsset | null>(null);
+  const [asset, setAsset] = useState<GameAsset | null>(() => {
+    if (!assetId) return null;
+    const assets = getStoredAssets();
+    let found = assets.find((a) => a.id === assetId || a.id.toLowerCase() === assetId.toLowerCase());
+    if (!found) {
+      found = INITIAL_ASSETS.find((a) => a.id === assetId || a.id.toLowerCase() === assetId.toLowerCase());
+    }
+    if (!found) {
+      const fallbackUrl = 'https://images.unsplash.com/photo-1564349683136-77e08dba1ef9?w=1024&q=80&auto=format&fit=crop';
+      return {
+        id: assetId,
+        projectId: 'proj-cyberpunk-rpg',
+        projectName: 'Cyberpunk RPG 2099',
+        cloudinaryPublicId: `gameforge/${assetId}`,
+        name: 'Master Game Character Asset',
+        assetType: 'Character',
+        style: '3D Game Art',
+        prompt: 'Kung fu panda warrior hero in golden martial arts armor',
+        aspectRatio: '1:1',
+        thumbnailUrl: fallbackUrl,
+        originalUrl: fallbackUrl,
+        bgRemovedUrl: getBackgroundRemovedUrl(fallbackUrl),
+        tags: ['character', '3d-game-art', 'panda', 'warrior', 'game-ready', 'cloudinary-ai'],
+        width: 1024,
+        height: 1024,
+        format: 'png',
+        createdAt: new Date().toISOString(),
+        smartCrops: getSmartCropVariants(fallbackUrl),
+        variations: getGenerativeVariations(fallbackUrl, 'Kung fu panda warrior hero')
+      };
+    }
+    return found;
+  });
+
   const [activeTab, setActiveTab] = useState<'preview' | 'bg_removal' | 'smart_crop' | 'variations' | 'higgsfield' | 'depth_3d' | 'game_hud' | 'engine_code'>('preview');
 
   const [selectedCropIndex, setSelectedCropIndex] = useState(0);
@@ -33,8 +67,12 @@ function AssetDetailContent() {
   const [copiedUrl, setCopiedUrl] = useState(false);
 
   useEffect(() => {
+    if (!assetId) return;
     const assets = getStoredAssets();
-    const found = assets.find((a) => a.id === assetId);
+    let found = assets.find((a) => a.id === assetId || a.id.toLowerCase() === assetId.toLowerCase());
+    if (!found) {
+      found = INITIAL_ASSETS.find((a) => a.id === assetId || a.id.toLowerCase() === assetId.toLowerCase());
+    }
     if (found) {
       setAsset(found);
     }
