@@ -8,7 +8,7 @@ import Footer from '@/components/Footer';
 import { AssetType, AssetStyle, AspectRatio, Project } from '@/types/gameforge';
 import { getStoredProjects, createNewAsset, createAssetPack } from '@/lib/store';
 import { enhanceGamePrompt } from '@/lib/prompt-enhancer';
-import { Wand2, Sparkles, Layers, PackageCheck, CheckCircle2, Loader2, ArrowRight, ShieldCheck, Zap, RefreshCw, Cpu, AlertTriangle } from 'lucide-react';
+import { Wand2, Sparkles, Layers, PackageCheck, CheckCircle2, Loader2, ArrowRight, ShieldCheck, Zap, RefreshCw, Cpu, AlertTriangle, CloudUpload, Info } from 'lucide-react';
 
 function GeneratorContent() {
   const router = useRouter();
@@ -32,6 +32,15 @@ function GeneratorContent() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressStep, setProgressStep] = useState(0);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [cloudinaryConfigured, setCloudinaryConfigured] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    // Check Cloudinary configuration status (non-blocking)
+    fetch('/api/cloudinary-status')
+      .then((r) => r.json())
+      .then((d: { configured: boolean }) => setCloudinaryConfigured(d.configured))
+      .catch(() => setCloudinaryConfigured(false));
+  }, []);
 
   useEffect(() => {
     const projs = getStoredProjects();
@@ -57,11 +66,21 @@ function GeneratorContent() {
     'Building smart crops & AI Vision tags...'
   ];
 
+  interface GenerateResult {
+    imageUrl: string;
+    cloudinaryPublicId: string | null;
+    cloudinaryUploaded: boolean;
+    optimizedUrl: string | null;
+    bgRemovedUrl: string | null;
+    tags: string[];
+    provider: 'pollinations+cloudinary' | 'pollinations';
+  }
+
   /**
    * Calls the real /api/generate-image route which uses Pollinations.AI.
-   * Returns the generated image URL (Cloudinary or Pollinations direct).
+   * Returns full generation result including Cloudinary metadata when available.
    */
-  async function generateImage(singlePrompt: string, singleAspectRatio: AspectRatio): Promise<string> {
+  async function generateImage(singlePrompt: string, singleAspectRatio: AspectRatio): Promise<GenerateResult> {
     const res = await fetch('/api/generate-image', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -76,8 +95,24 @@ function GeneratorContent() {
       const err = await res.json().catch(() => ({ error: 'Unknown error' })) as { error?: string };
       throw new Error(err.error ?? `HTTP ${res.status}`);
     }
-    const data = await res.json() as { imageUrl: string };
-    return data.imageUrl;
+    const data = await res.json() as {
+      imageUrl: string;
+      cloudinaryPublicId: string | null;
+      cloudinaryConfigured: boolean;
+      optimizedUrl: string | null;
+      bgRemovedUrl: string | null;
+      tags: string[];
+      provider: 'pollinations+cloudinary' | 'pollinations';
+    };
+    return {
+      imageUrl:           data.imageUrl,
+      cloudinaryPublicId: data.cloudinaryPublicId,
+      cloudinaryUploaded: data.provider === 'pollinations+cloudinary',
+      optimizedUrl:       data.optimizedUrl,
+      bgRemovedUrl:       data.bgRemovedUrl,
+      tags:               data.tags ?? [],
+      provider:           data.provider,
+    };
   }
 
   const handleGenerate = async (e: React.FormEvent) => {
@@ -95,7 +130,7 @@ function GeneratorContent() {
 
     try {
       if (generationMode === 'single') {
-        const imageUrl = await generateImage(prompt, aspectRatio);
+        const result = await generateImage(prompt, aspectRatio);
         clearInterval(stepInterval);
         setProgressStep(generationSteps.length - 1);
 
@@ -106,7 +141,13 @@ function GeneratorContent() {
           assetType,
           style,
           aspectRatio,
-          imageUrl,
+          imageUrl:           result.imageUrl,
+          cloudinaryPublicId: result.cloudinaryPublicId ?? undefined,
+          optimizedUrl:       result.optimizedUrl,
+          bgRemovedUrl:       result.bgRemovedUrl,
+          tags:               result.tags,
+          cloudinaryUploaded: result.cloudinaryUploaded,
+          provider:           result.provider,
         });
         setIsGenerating(false);
         router.push(`/asset/${newAsset.id}`);
@@ -118,10 +159,10 @@ function GeneratorContent() {
           { suffix: 'character inventory gear icon, small icon', ratio: '1:1' as AspectRatio },
         ];
 
-        const imageUrls: string[] = [];
+        const results: GenerateResult[] = [];
         for (const item of packPrompts) {
-          const url = await generateImage(`${prompt}, ${item.suffix}`, item.ratio);
-          imageUrls.push(url);
+          const r = await generateImage(`${prompt}, ${item.suffix}`, item.ratio);
+          results.push(r);
         }
 
         clearInterval(stepInterval);
@@ -133,7 +174,13 @@ function GeneratorContent() {
           prompt,
           assetType,
           style,
-          imageUrls,
+          imageUrls:           results.map((r) => r.imageUrl),
+          cloudinaryPublicIds: results.map((r) => r.cloudinaryPublicId ?? undefined),
+          optimizedUrls:       results.map((r) => r.optimizedUrl),
+          bgRemovedUrls:       results.map((r) => r.bgRemovedUrl),
+          tagSets:             results.map((r) => r.tags),
+          cloudinaryUploaded:  results[0]?.cloudinaryUploaded ?? false,
+          provider:            results[0]?.provider ?? 'pollinations',
         });
         setIsGenerating(false);
         router.push(`/asset/${packAssets[0].id}?pack=true`);
@@ -167,6 +214,34 @@ function GeneratorContent() {
           Enter your prompt to generate optimized, background-removed, game-ready assets.
         </p>
       </motion.div>
+
+      {/* CLOUDINARY STATUS BANNER */}
+      {cloudinaryConfigured === false && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4 flex items-start gap-3 p-4 rounded-2xl bg-amber-950/40 border border-amber-500/30 text-xs text-amber-200"
+        >
+          <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-amber-300">Cloudinary not configured — images served directly from Pollinations.AI</p>
+            <p className="text-[11px] mt-0.5 text-amber-400">
+              Set <code className="bg-amber-950 px-1 rounded">CLOUDINARY_CLOUD_NAME</code>, <code className="bg-amber-950 px-1 rounded">CLOUDINARY_API_KEY</code>, and <code className="bg-amber-950 px-1 rounded">CLOUDINARY_API_SECRET</code> in <code className="bg-amber-950 px-1 rounded">.env.local</code> to enable real Cloudinary transformations (bg removal, smart crop, f_auto/q_auto, AI Vision tags).
+            </p>
+          </div>
+        </motion.div>
+      )}
+      {cloudinaryConfigured === true && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4 flex items-center gap-2 p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 text-xs text-emerald-300"
+        >
+          <CloudUpload className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span className="font-bold">Cloudinary pipeline active</span>
+          <span className="text-emerald-500">— generated images will be uploaded with f_auto, q_auto, bg removal, and AI Vision tags</span>
+        </motion.div>
+      )}
 
       {/* MODE TOGGLE (SINGLE VS ASSET PACK) */}
       <motion.div

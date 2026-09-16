@@ -7,7 +7,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { GameAsset, Project } from '@/types/gameforge';
 import { getStoredProjects, getStoredAssets, saveProjects } from '@/lib/store';
-import { LayoutDashboard, Wand2, Layers, FolderKanban, Plus, ExternalLink, Sparkles, Image as ImageIcon, ShieldCheck, Zap, ArrowUpRight, Search, Tag, Settings } from 'lucide-react';
+import { LayoutDashboard, Wand2, Layers, FolderKanban, Plus, ExternalLink, Sparkles, Image as ImageIcon, ShieldCheck, Zap, ArrowUpRight, Search, Tag, Settings, CloudUpload, Heart } from 'lucide-react';
 
 export default function DashboardPage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -33,6 +33,12 @@ export default function DashboardPage() {
   const activeProject = projects.find(p => p.id === selectedProjectId) || projects[0];
 
   const projectAssets = assets.filter(a => a.projectId === selectedProjectId);
+
+  // Truthful stats — count only user-generated assets (not mock data)
+  const userGeneratedAssets = assets.filter(a => a.provider && a.provider !== undefined);
+  const cloudinaryAssets = assets.filter(a => a.cloudinaryUploaded);
+  const favoriteAssets = assets.filter(a => a.isFavorite);
+  const totalUserAssets = assets.filter(a => !['asset-kungfu-panda','asset-cyber-warrior','asset-dragon-lord','asset-scifi-city','asset-scifi-blaster','asset-health-potion'].includes(a.id));
 
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
@@ -245,7 +251,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Quick SaaS Stats card */}
+            {/* Truthful session stats */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -254,13 +260,26 @@ export default function DashboardPage() {
             >
               <div className="flex items-center gap-2 text-xs font-bold text-purple-400 uppercase tracking-wider">
                 <Zap className="w-4 h-4" />
-                <span>Cloudinary CDN Bandwidth Saved</span>
+                <span>Your Session Stats</span>
               </div>
-              <div className="text-3xl font-extrabold text-white">
-                84.2 <span className="text-base font-normal text-slate-400">GB saved (f_auto/q_auto)</span>
+              <div className="space-y-3 text-xs">
+                <div className="flex justify-between items-center py-2 border-b border-slate-800">
+                  <span className="text-slate-400 flex items-center gap-1.5"><ImageIcon className="w-3.5 h-3.5" />Generated Assets</span>
+                  <span className="font-bold text-white">{totalUserAssets.length}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-slate-800">
+                  <span className="text-slate-400 flex items-center gap-1.5"><CloudUpload className="w-3.5 h-3.5" />Cloudinary Uploads</span>
+                  <span className={`font-bold ${cloudinaryAssets.length > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
+                    {cloudinaryAssets.length > 0 ? cloudinaryAssets.length : 'None (configure env vars)'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-slate-400 flex items-center gap-1.5"><Heart className="w-3.5 h-3.5" />Favorites</span>
+                  <span className="font-bold text-pink-400">{favoriteAssets.length}</span>
+                </div>
               </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Cloudinary automatically compresses WebP/AVIF images dynamically based on user GPU/device capability.
+              <p className="text-[10px] text-slate-500 leading-relaxed">
+                Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET to enable real Cloudinary pipeline.
               </p>
             </motion.div>
           </div>
@@ -298,28 +317,35 @@ export default function DashboardPage() {
                   </motion.div>
                 </div>
 
-                {/* METRICS ROW */}
+                {/* METRICS ROW — real counts from localStorage */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800">
                   <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800/80">
-                    <span className="text-xs text-slate-400 font-medium">Total Assets</span>
-                    <p className="text-2xl font-extrabold text-white mt-1">{activeProject.assetCount}</p>
+                    <span className="text-xs text-slate-400 font-medium">Project Assets</span>
+                    <p className="text-2xl font-extrabold text-white mt-1">{projectAssets.length}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">in this project</p>
                   </div>
 
                   <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800/80">
                     <span className="text-xs text-slate-400 font-medium">Characters</span>
-                    <p className="text-2xl font-extrabold text-cyan-400 mt-1">{activeProject.characterCount}</p>
+                    <p className="text-2xl font-extrabold text-cyan-400 mt-1">
+                      {projectAssets.filter(a => a.assetType === 'Character').length}
+                    </p>
                   </div>
 
                   <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800/80">
                     <span className="text-xs text-slate-400 font-medium">Environments</span>
-                    <p className="text-2xl font-extrabold text-purple-400 mt-1">{activeProject.environmentCount}</p>
+                    <p className="text-2xl font-extrabold text-purple-400 mt-1">
+                      {projectAssets.filter(a => a.assetType === 'Environment').length}
+                    </p>
                   </div>
 
                   <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800/80">
-                    <span className="text-xs text-slate-400 font-medium">Pipeline Status</span>
-                    <p className="text-xs font-bold text-emerald-400 mt-2 flex items-center gap-1">
-                      <ShieldCheck className="w-4 h-4" />
-                      <span>Cloudinary AI Ready</span>
+                    <span className="text-xs text-slate-400 font-medium">Cloudinary</span>
+                    <p className="text-xs font-bold mt-2 flex items-center gap-1">
+                      {projectAssets.some(a => a.cloudinaryUploaded)
+                        ? <><ShieldCheck className="w-4 h-4 text-emerald-400" /><span className="text-emerald-400">Pipeline Active</span></>
+                        : <><CloudUpload className="w-4 h-4 text-slate-500" /><span className="text-slate-500">Not configured</span></>
+                      }
                     </p>
                   </div>
                 </div>

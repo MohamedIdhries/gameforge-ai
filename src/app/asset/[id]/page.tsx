@@ -15,7 +15,8 @@ import { GameAsset } from '@/types/gameforge';
 import { getStoredAssets, saveAssets } from '@/lib/store';
 import { INITIAL_ASSETS } from '@/lib/mock-data';
 import { getOptimizedCloudinaryUrl, getGenerativeVariations, getSmartCropVariants, getBackgroundRemovedUrl } from '@/lib/cloudinary';
-import { ArrowLeft, Wand2, Scissors, Crop, Sparkles, Tag, Check, Copy, Download, Share2, Layers, ShieldCheck, Code, Eye, RefreshCcw, PackageCheck, Box, Gamepad2, Film, Cpu } from 'lucide-react';
+import { toggleFavorite } from '@/lib/store';
+import { ArrowLeft, Wand2, Scissors, Crop, Sparkles, Tag, Check, Copy, Download, Share2, Layers, ShieldCheck, Code, Eye, RefreshCcw, PackageCheck, Box, Gamepad2, Film, Cpu, Heart, CloudUpload, AlertCircle } from 'lucide-react';
 
 function AssetDetailContent() {
   const params = useParams();
@@ -65,6 +66,15 @@ function AssetDetailContent() {
   const [selectedVariationIndex, setSelectedVariationIndex] = useState(0);
 
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [isFav, setIsFav] = useState(false);
+  const [cloudinaryStatus, setCloudinaryStatus] = useState<'checking' | 'uploaded' | 'not-uploaded' | 'unknown'>('unknown');
+
+  useEffect(() => {
+    if (asset) {
+      setIsFav(asset.isFavorite ?? false);
+      setCloudinaryStatus(asset.cloudinaryUploaded ? 'uploaded' : 'not-uploaded');
+    }
+  }, [asset?.id]);
 
   useEffect(() => {
     if (!assetId) return;
@@ -104,6 +114,13 @@ function AssetDetailContent() {
     setCopiedUrl(true);
     triggerConfetti();
     setTimeout(() => setCopiedUrl(false), 2000);
+  };
+
+  const handleToggleFavorite = () => {
+    if (!asset) return;
+    const newFav = toggleFavorite(asset.id);
+    setIsFav(newFav);
+    setAsset((prev) => prev ? { ...prev, isFavorite: newFav } : prev);
   };
 
   const currentCrop = asset.smartCrops[selectedCropIndex] || asset.smartCrops[0];
@@ -153,7 +170,34 @@ function AssetDetailContent() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Cloudinary pipeline status badge */}
+          <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold ${
+            cloudinaryStatus === 'uploaded'
+              ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-400'
+              : cloudinaryStatus === 'not-uploaded'
+              ? 'bg-slate-900 border-slate-700 text-slate-400'
+              : 'bg-slate-900 border-slate-700 text-slate-500'
+          }`}>
+            <CloudUpload className="w-3.5 h-3.5" />
+            <span>{cloudinaryStatus === 'uploaded' ? 'Cloudinary ✓' : 'Pollinations Direct'}</span>
+          </div>
+
+          {/* Favorite toggle */}
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
+            onClick={handleToggleFavorite}
+            className={`p-2.5 rounded-xl border transition-all ${
+              isFav
+                ? 'bg-pink-950/60 border-pink-500/50 text-pink-400'
+                : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-pink-400'
+            }`}
+            title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <Heart className={`w-4 h-4 ${isFav ? 'fill-pink-400' : ''}`} />
+          </motion.button>
+
           <motion.button
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.96 }}
@@ -161,7 +205,7 @@ function AssetDetailContent() {
             className="px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 hover:text-white font-bold text-xs flex items-center gap-2 transition-all"
           >
             {copiedUrl ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-cyan-400" />}
-            <span>{copiedUrl ? 'Copied URL!' : 'Copy Cloudinary URL'}</span>
+            <span>{copiedUrl ? 'Copied!' : 'Copy URL'}</span>
           </motion.button>
 
           <motion.a
@@ -348,8 +392,14 @@ function AssetDetailContent() {
                       activeTab === 'smart_crop' && selectedCropIndex > 0 ? 'w-[240px] h-[240px] object-cover ring-2 ring-purple-500/50' : 'w-full'
                     }`}
                   />
-                  <div className="mt-3 px-3 py-1 rounded-full bg-slate-950/80 border border-slate-800 text-[11px] font-mono text-cyan-400">
-                    Cloudinary: f_auto,q_auto
+                  <div className={`mt-3 px-3 py-1 rounded-full border text-[11px] font-mono ${
+                    asset.cloudinaryUploaded
+                      ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-400'
+                      : 'bg-slate-950/80 border-slate-800 text-cyan-400'
+                  }`}>
+                    {asset.cloudinaryUploaded
+                      ? '✓ Cloudinary: f_auto,q_auto (real)'
+                      : 'Pollinations direct (Cloudinary not configured)'}
                   </div>
                 </motion.div>
               </AnimatePresence>
@@ -432,10 +482,22 @@ function AssetDetailContent() {
               Asset Metadata & Pipeline
             </h3>
 
+            {/* Cloudinary pipeline status */}
+            <div className={`flex items-center gap-2 p-3 rounded-xl border text-xs font-bold ${
+              asset.cloudinaryUploaded
+                ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+                : 'bg-amber-950/30 border-amber-500/30 text-amber-300'
+            }`}>
+              {asset.cloudinaryUploaded
+                ? <><ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" /> Cloudinary pipeline active — real transformations available</>
+                : <><AlertCircle className="w-4 h-4 text-amber-400 shrink-0" /> Cloudinary not configured — set env vars to enable real pipeline</>
+              }
+            </div>
+
             <div className="space-y-2 text-xs">
               <div className="flex justify-between py-2 border-b border-slate-800">
                 <span className="text-slate-400">Cloudinary Public ID</span>
-                <span className="font-mono text-cyan-300">{asset.cloudinaryPublicId}</span>
+                <span className="font-mono text-cyan-300 text-right break-all max-w-[60%]">{asset.cloudinaryPublicId}</span>
               </div>
 
               <div className="flex justify-between py-2 border-b border-slate-800">
@@ -444,8 +506,10 @@ function AssetDetailContent() {
               </div>
 
               <div className="flex justify-between py-2 border-b border-slate-800">
-                <span className="text-slate-400">Format & Quality</span>
-                <span className="font-mono text-emerald-400 font-bold">PNG / f_auto,q_auto</span>
+                <span className="text-slate-400">Format & Delivery</span>
+                <span className={`font-mono font-bold ${asset.cloudinaryUploaded ? 'text-emerald-400' : 'text-slate-400'}`}>
+                  {asset.cloudinaryUploaded ? 'PNG / f_auto,q_auto ✓' : 'PNG / direct URL'}
+                </span>
               </div>
 
               <div className="flex justify-between py-2 border-b border-slate-800">
@@ -454,9 +518,16 @@ function AssetDetailContent() {
               </div>
 
               <div className="flex justify-between py-2 border-b border-slate-800">
-                <span className="text-slate-400">Higgsfield AI Engine</span>
-                <span className="font-bold text-cyan-300 flex items-center gap-1">
-                  <Film className="w-3.5 h-3.5" /> 60 FPS Video Motion Ready
+                <span className="text-slate-400">Generation Provider</span>
+                <span className="font-bold text-cyan-300">
+                  {asset.provider === 'pollinations+cloudinary' ? 'Pollinations + Cloudinary' : asset.provider === 'user-upload' ? 'User Upload' : 'Pollinations.AI'}
+                </span>
+              </div>
+
+              <div className="flex justify-between py-2 border-b border-slate-800">
+                <span className="text-slate-400">Higgsfield Motion</span>
+                <span className="font-bold text-slate-400 flex items-center gap-1">
+                  <Film className="w-3.5 h-3.5" /> Requires API key
                 </span>
               </div>
 
@@ -487,8 +558,11 @@ function AssetDetailContent() {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
                 <Tag className="w-4 h-4 text-cyan-400" />
-                Cloudinary AI Vision Tags ({asset.tags.length})
+                {asset.cloudinaryUploaded ? 'Cloudinary AI Vision Tags' : 'Prompt-Derived Tags'} ({asset.tags.length})
               </h3>
+              {!asset.cloudinaryUploaded && (
+                <span className="text-[10px] text-amber-400 font-semibold">prompt-derived</span>
+              )}
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -501,7 +575,49 @@ function AssetDetailContent() {
                 </span>
               ))}
             </div>
+            {asset.cloudinaryUploaded && (
+              <p className="text-[10px] text-slate-500">
+                Tags stored in Cloudinary — searchable via Cloudinary Media Library
+              </p>
+            )}
           </motion.div>
+
+          {/* PACK SIBLINGS (if this is part of a pack) */}
+          {asset.isPack && asset.packName && (() => {
+            const allAssets = getStoredAssets();
+            const siblings = allAssets.filter(
+              (a) => a.isPack && a.packName === asset.packName && a.id !== asset.id
+            );
+            if (siblings.length === 0) return null;
+            return (
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.25 }}
+                className="bg-purple-950/30 border border-purple-500/30 rounded-3xl p-5 shadow-xl space-y-3 backdrop-blur-xl"
+              >
+                <h3 className="text-xs font-bold text-purple-300 uppercase tracking-wider flex items-center gap-2">
+                  <PackageCheck className="w-4 h-4" />
+                  Pack: {asset.packName} ({siblings.length + 1} assets)
+                </h3>
+                <div className="space-y-2">
+                  {siblings.map((sib) => (
+                    <Link
+                      key={sib.id}
+                      href={`/asset/${sib.id}`}
+                      className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 hover:border-purple-500/50 transition-colors group"
+                    >
+                      <img src={sib.thumbnailUrl} alt={sib.name} className="w-10 h-10 rounded-lg object-cover border border-slate-800" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-white group-hover:text-purple-300 transition-colors truncate">{sib.name}</p>
+                        <p className="text-[10px] text-slate-500">{sib.width}×{sib.height}</p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </motion.div>
+            );
+          })()}
 
           {/* QUICK ACTIONS */}
           <motion.div
@@ -517,7 +633,7 @@ function AssetDetailContent() {
               className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center justify-center gap-2 border border-slate-700 transition-colors"
             >
               <Wand2 className="w-4 h-4 text-cyan-400" />
-              <span>Generate Asset Variation</span>
+              <span>Generate New Asset</span>
             </Link>
 
             <Link

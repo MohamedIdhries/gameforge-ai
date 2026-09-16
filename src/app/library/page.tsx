@@ -7,7 +7,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { GameAsset, Project, AssetType } from '@/types/gameforge';
 import { getStoredAssets, getStoredProjects } from '@/lib/store';
-import { Layers, Search, Filter, Wand2, Grid, List, Tag, Sparkles, ExternalLink, Image as ImageIcon } from 'lucide-react';
+import { Layers, Search, Filter, Wand2, Grid, List, Tag, Sparkles, ExternalLink, Image as ImageIcon, Heart, SortAsc, CloudUpload } from 'lucide-react';
 
 export default function LibraryPage() {
   const [assets, setAssets] = useState<GameAsset[]>([]);
@@ -18,6 +18,9 @@ export default function LibraryPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name'>('newest');
+  const [cloudinaryOnly, setCloudinaryOnly] = useState(false);
 
   useEffect(() => {
     setAssets(getStoredAssets());
@@ -26,22 +29,26 @@ export default function LibraryPage() {
 
   const categories = ['all', 'Character', 'Environment', 'Item/Prop', 'UI/Icon', 'Texture'];
 
-  const filteredAssets = assets.filter((asset) => {
-    // Search query filter
-    const matchesSearch =
-      searchQuery === '' ||
-      asset.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      asset.prompt.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      asset.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredAssets = assets
+    .filter((asset) => {
+      const matchesSearch =
+        searchQuery === '' ||
+        asset.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        asset.prompt.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        asset.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    // Project filter
-    const matchesProject = selectedProjectId === 'all' || asset.projectId === selectedProjectId;
+      const matchesProject = selectedProjectId === 'all' || asset.projectId === selectedProjectId;
+      const matchesCategory = selectedCategory === 'all' || asset.assetType === selectedCategory;
+      const matchesFavorites = !showFavoritesOnly || asset.isFavorite;
+      const matchesCloudinary = !cloudinaryOnly || asset.cloudinaryUploaded;
 
-    // Category filter
-    const matchesCategory = selectedCategory === 'all' || asset.assetType === selectedCategory;
-
-    return matchesSearch && matchesProject && matchesCategory;
-  });
+      return matchesSearch && matchesProject && matchesCategory && matchesFavorites && matchesCloudinary;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'newest') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (sortBy === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return a.name.localeCompare(b.name);
+    });
 
   const containerVariants: Variants = {
     hidden: { opacity: 0 },
@@ -167,6 +174,50 @@ export default function LibraryPage() {
               </button>
             ))}
           </div>
+
+          {/* SORT & EXTRA FILTERS */}
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/60 text-xs">
+            <span className="text-slate-400 font-semibold mr-1">Sort:</span>
+            {(['newest', 'oldest', 'name'] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setSortBy(s)}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all capitalize ${
+                  sortBy === s
+                    ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50'
+                    : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200'
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold border transition-all ${
+                  showFavoritesOnly
+                    ? 'bg-pink-950/60 border-pink-500/50 text-pink-400'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-pink-400'
+                }`}
+              >
+                <Heart className={`w-3.5 h-3.5 ${showFavoritesOnly ? 'fill-pink-400' : ''}`} />
+                <span>Favorites</span>
+              </button>
+
+              <button
+                onClick={() => setCloudinaryOnly(!cloudinaryOnly)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold border transition-all ${
+                  cloudinaryOnly
+                    ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-400'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-emerald-400'
+                }`}
+              >
+                <CloudUpload className="w-3.5 h-3.5" />
+                <span>Cloudinary Only</span>
+              </button>
+            </div>
+          </div>
         </motion.div>
 
         {/* RESULTS GRID / LIST */}
@@ -215,10 +266,25 @@ export default function LibraryPage() {
                           Pack
                         </span>
                       )}
+                      {asset.cloudinaryUploaded && (
+                        <span className="px-2 py-0.5 rounded bg-emerald-900/90 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
+                          ☁ CDN
+                        </span>
+                      )}
                     </div>
 
-                    <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded bg-slate-950/90 text-[10px] font-mono text-slate-300 border border-slate-800">
-                      f_auto,q_auto
+                    {asset.isFavorite && (
+                      <div className="absolute top-2.5 right-2.5">
+                        <Heart className="w-4 h-4 text-pink-400 fill-pink-400 drop-shadow" />
+                      </div>
+                    )}
+
+                    <div className={`absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded text-[10px] font-mono border ${
+                      asset.cloudinaryUploaded
+                        ? 'bg-emerald-950/90 text-emerald-400 border-emerald-800'
+                        : 'bg-slate-950/90 text-slate-300 border-slate-800'
+                    }`}>
+                      {asset.cloudinaryUploaded ? 'f_auto,q_auto ✓' : 'direct'}
                     </div>
                   </div>
 

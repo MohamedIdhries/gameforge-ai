@@ -116,6 +116,17 @@ export function resolvePromptImageUrl(prompt: string, assetType: AssetType, styl
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
+export function toggleFavorite(assetId: string): boolean {
+  const assets = getStoredAssets();
+  const updated = assets.map((a) => {
+    if (a.id === assetId) return { ...a, isFavorite: !a.isFavorite };
+    return a;
+  });
+  saveAssets(updated);
+  const asset = updated.find((a) => a.id === assetId);
+  return asset?.isFavorite ?? false;
+}
+
 export function createNewAsset(params: {
   projectId: string;
   name: string;
@@ -125,6 +136,20 @@ export function createNewAsset(params: {
   aspectRatio: AspectRatio;
   /** Real image URL from the generation API. Falls back to prompt-matched stock image when omitted. */
   imageUrl?: string;
+  /** Cloudinary public_id if the image was uploaded to Cloudinary */
+  cloudinaryPublicId?: string;
+  /** f_auto,q_auto optimized URL from Cloudinary */
+  optimizedUrl?: string | null;
+  /** Background-removed URL from Cloudinary */
+  bgRemovedUrl?: string | null;
+  /** Tags from Cloudinary or prompt-derived */
+  tags?: string[];
+  /** Whether actually uploaded to Cloudinary */
+  cloudinaryUploaded?: boolean;
+  /** Provider used */
+  provider?: 'pollinations+cloudinary' | 'pollinations' | 'user-upload';
+  /** Parent asset ID for variations */
+  parentAssetId?: string;
 }): GameAsset {
   const projects = getStoredProjects();
   const proj = projects.find(p => p.id === params.projectId) || projects[0];
@@ -132,10 +157,13 @@ export function createNewAsset(params: {
   const imageUrl = params.imageUrl ?? resolvePromptImageUrl(params.prompt, params.assetType, params.style);
 
   const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-  const publicId = `gameforge/${params.assetType.toLowerCase().replace(/[^a-z]/g, '')}_${uniqueSuffix}`;
-  const tags = generateCloudinaryTags(params.prompt, params.assetType, params.style);
-  
-  const bgRemovedUrl = getBackgroundRemovedUrl(imageUrl);
+  // Use the real Cloudinary public_id if provided, otherwise generate a local one
+  const publicId = params.cloudinaryPublicId
+    ?? `gameforge/${params.assetType.toLowerCase().replace(/[^a-z]/g, '')}_${uniqueSuffix}`;
+  const tags = params.tags ?? generateCloudinaryTags(params.prompt, params.assetType, params.style);
+
+  // Use real Cloudinary bg-removed URL if available, otherwise build a URL-based one
+  const bgRemovedUrl = params.bgRemovedUrl ?? getBackgroundRemovedUrl(imageUrl);
   const smartCrops = getSmartCropVariants(imageUrl);
   const variations = getGenerativeVariations(imageUrl, params.prompt);
 
@@ -149,13 +177,18 @@ export function createNewAsset(params: {
     style: params.style,
     prompt: params.prompt,
     aspectRatio: params.aspectRatio,
-    thumbnailUrl: imageUrl,
+    thumbnailUrl: params.optimizedUrl ?? imageUrl,
     originalUrl: imageUrl,
     bgRemovedUrl: bgRemovedUrl,
+    optimizedUrl: params.optimizedUrl ?? null,
     tags: tags,
     width: params.aspectRatio === '16:9' ? 1920 : 1024,
     height: params.aspectRatio === '16:9' ? 1080 : 1024,
     format: 'png',
+    cloudinaryUploaded: params.cloudinaryUploaded ?? false,
+    provider: params.provider ?? 'pollinations',
+    parentAssetId: params.parentAssetId,
+    isFavorite: false,
     createdAt: new Date().toISOString(),
     smartCrops: smartCrops,
     variations: variations
@@ -195,6 +228,12 @@ export function createAssetPack(params: {
   assetType: AssetType;
   style: AssetStyle;
   imageUrls?: string[];
+  cloudinaryPublicIds?: (string | undefined)[];
+  optimizedUrls?: (string | null | undefined)[];
+  bgRemovedUrls?: (string | null | undefined)[];
+  tagSets?: string[][];
+  cloudinaryUploaded?: boolean;
+  provider?: 'pollinations+cloudinary' | 'pollinations' | 'user-upload';
 }): GameAsset[] {
   const packName = params.packName || 'Cyberpunk Warrior Pack';
 
@@ -234,7 +273,13 @@ export function createAssetPack(params: {
       assetType: item.type,
       style: style,
       aspectRatio: item.aspectRatio,
-      imageUrl: params.imageUrls?.[i],
+      imageUrl:           params.imageUrls?.[i],
+      cloudinaryPublicId: params.cloudinaryPublicIds?.[i],
+      optimizedUrl:       params.optimizedUrls?.[i] ?? null,
+      bgRemovedUrl:       params.bgRemovedUrls?.[i] ?? null,
+      tags:               params.tagSets?.[i],
+      cloudinaryUploaded: params.cloudinaryUploaded,
+      provider:           params.provider,
     });
     asset.isPack = true;
     asset.packName = packName;

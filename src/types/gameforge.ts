@@ -38,12 +38,23 @@ export interface GameAsset {
   thumbnailUrl: string;
   originalUrl: string;
   bgRemovedUrl: string;
+  /** f_auto,q_auto optimized Cloudinary URL (null if not uploaded to Cloudinary) */
+  optimizedUrl?: string | null;
   tags: string[];
+  /** Dominant colors from Cloudinary AI Vision (hex strings) */
+  dominantColors?: string[];
   width: number;
   height: number;
   format: string;
   isPack?: boolean;
   packName?: string;
+  /** ID of the parent asset this was derived from (for variations) */
+  parentAssetId?: string;
+  isFavorite?: boolean;
+  /** Whether this asset was actually uploaded to Cloudinary */
+  cloudinaryUploaded?: boolean;
+  /** Generation provider used */
+  provider?: 'pollinations+cloudinary' | 'pollinations' | 'user-upload';
   createdAt: string;
   smartCrops: SmartCropVariant[];
   variations: GenerativeVariation[];

@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description: "SaaS platform for indie game developers to generate and manage game-ready visual assets using AI and Cloudinary media pipeline.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"
