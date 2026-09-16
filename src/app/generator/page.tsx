@@ -8,7 +8,7 @@ import Footer from '@/components/Footer';
 import { AssetType, AssetStyle, AspectRatio, Project } from '@/types/gameforge';
 import { getStoredProjects, createNewAsset, createAssetPack } from '@/lib/store';
 import { enhanceGamePrompt } from '@/lib/prompt-enhancer';
-import { Wand2, Sparkles, Layers, PackageCheck, CheckCircle2, Loader2, ArrowRight, ShieldCheck, Zap, RefreshCw, Cpu } from 'lucide-react';
+import { Wand2, Sparkles, Layers, PackageCheck, CheckCircle2, Loader2, ArrowRight, ShieldCheck, Zap, RefreshCw, Cpu, AlertTriangle } from 'lucide-react';
 
 function GeneratorContent() {
   const router = useRouter();
@@ -31,6 +31,7 @@ function GeneratorContent() {
   // Generation status state
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressStep, setProgressStep] = useState(0);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   useEffect(() => {
     const projs = getStoredProjects();
@@ -49,54 +50,100 @@ function GeneratorContent() {
   ];
 
   const generationSteps = [
-    'Synthesizing visual asset via AI image model...',
-    'Uploading master asset to Cloudinary Media Cloud...',
-    'Executing Cloudinary f_auto & q_auto format optimization...',
-    'Extracting AI Vision tags (character, armor, cyberpunk)...',
-    'Generating transparent PNG & smart crops (512×512, 256×256)...'
+    'Sending prompt to Pollinations AI image model...',
+    'Waiting for AI image synthesis (may take 15–40 s)...',
+    'Image received — uploading to Cloudinary (if configured)...',
+    'Applying f_auto & q_auto optimisation...',
+    'Building smart crops & AI Vision tags...'
   ];
 
-  const handleGenerate = (e: React.FormEvent) => {
+  /**
+   * Calls the real /api/generate-image route which uses Pollinations.AI.
+   * Returns the generated image URL (Cloudinary or Pollinations direct).
+   */
+  async function generateImage(singlePrompt: string, singleAspectRatio: AspectRatio): Promise<string> {
+    const res = await fetch('/api/generate-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: singlePrompt,
+        assetType,
+        style,
+        aspectRatio: singleAspectRatio,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Unknown error' })) as { error?: string };
+      throw new Error(err.error ?? `HTTP ${res.status}`);
+    }
+    const data = await res.json() as { imageUrl: string };
+    return data.imageUrl;
+  }
+
+  const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!prompt.trim() || !selectedProjectId) return;
 
     setIsGenerating(true);
     setProgressStep(0);
+    setGenerationError(null);
 
-    // Simulate multi-step Cloudinary AI pipeline processing
-    let currentStep = 0;
-    const interval = setInterval(() => {
-      currentStep++;
-      if (currentStep < generationSteps.length) {
-        setProgressStep(currentStep);
+    // Advance progress indicator while the real fetch is in flight
+    const stepInterval = setInterval(() => {
+      setProgressStep(prev => Math.min(prev + 1, generationSteps.length - 2));
+    }, 4000);
+
+    try {
+      if (generationMode === 'single') {
+        const imageUrl = await generateImage(prompt, aspectRatio);
+        clearInterval(stepInterval);
+        setProgressStep(generationSteps.length - 1);
+
+        const newAsset = createNewAsset({
+          projectId: selectedProjectId,
+          name: `${style} ${assetType}`,
+          prompt,
+          assetType,
+          style,
+          aspectRatio,
+          imageUrl,
+        });
+        setIsGenerating(false);
+        router.push(`/asset/${newAsset.id}`);
       } else {
-        clearInterval(interval);
+        // Asset Pack Mode — generate 3 images in sequence
+        const packPrompts = [
+          { suffix: 'full body standing stance, game character model', ratio: '1:1' as AspectRatio },
+          { suffix: 'headshot hero portrait, character icon', ratio: '1:1' as AspectRatio },
+          { suffix: 'character inventory gear icon, small icon', ratio: '1:1' as AspectRatio },
+        ];
 
-        if (generationMode === 'single') {
-          const newAsset = createNewAsset({
-            projectId: selectedProjectId,
-            name: `${style} ${assetType}`,
-            prompt: prompt,
-            assetType: assetType,
-            style: style,
-            aspectRatio: aspectRatio
-          });
-          setIsGenerating(false);
-          router.push(`/asset/${newAsset.id}`);
-        } else {
-          // Asset Pack Mode!
-          const packAssets = createAssetPack({
-            projectId: selectedProjectId,
-            packName: packName || 'Game Asset Pack',
-            prompt: prompt,
-            assetType: assetType,
-            style: style
-          });
-          setIsGenerating(false);
-          router.push(`/asset/${packAssets[0].id}?pack=true`);
+        const imageUrls: string[] = [];
+        for (const item of packPrompts) {
+          const url = await generateImage(`${prompt}, ${item.suffix}`, item.ratio);
+          imageUrls.push(url);
         }
+
+        clearInterval(stepInterval);
+        setProgressStep(generationSteps.length - 1);
+
+        const packAssets = createAssetPack({
+          projectId: selectedProjectId,
+          packName: packName || 'Game Asset Pack',
+          prompt,
+          assetType,
+          style,
+          imageUrls,
+        });
+        setIsGenerating(false);
+        router.push(`/asset/${packAssets[0].id}?pack=true`);
       }
-    }, 600);
+    } catch (err) {
+      clearInterval(stepInterval);
+      setIsGenerating(false);
+      const msg = err instanceof Error ? err.message : 'Generation failed';
+      setGenerationError(msg);
+    }
   };
 
   return (
@@ -163,6 +210,27 @@ function GeneratorContent() {
         className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden backdrop-blur-xl"
       >
         
+        {/* Error state */}
+        <AnimatePresence>
+          {generationError && !isGenerating && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="mb-4 flex items-start gap-3 p-4 rounded-2xl bg-red-950/60 border border-red-500/40 text-sm text-red-300"
+            >
+              <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-red-200">Generation failed</p>
+                <p className="text-xs mt-0.5 font-mono">{generationError}</p>
+                <p className="text-xs mt-1 text-red-400">
+                  Pollinations.AI is free and requires no key. If this persists, check your network or try a shorter prompt.
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Overlay loading state during generation */}
         <AnimatePresence>
           {isGenerating && (
@@ -179,7 +247,7 @@ function GeneratorContent() {
 
               <div>
                 <h3 className="text-xl font-extrabold text-white">
-                  {generationMode === 'pack' ? 'Building Complete Asset Pack...' : 'Processing Cloudinary Pipeline...'}
+                  {generationMode === 'pack' ? 'Generating Asset Pack (3 images)...' : 'Generating AI Image...'}
                 </h3>
                 <motion.p
                   key={progressStep}
@@ -189,6 +257,9 @@ function GeneratorContent() {
                 >
                   {generationSteps[progressStep]}
                 </motion.p>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Real AI generation via Pollinations.AI — typically 15–40 s per image
+                </p>
               </div>
 
               {/* Progress bar */}
@@ -201,8 +272,8 @@ function GeneratorContent() {
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-400 font-mono pt-4 border-t border-slate-800/80">
-                <span>✓ f_auto & q_auto active</span>
-                <span>✓ e_background_removal</span>
+                <span>✓ Pollinations AI (flux model)</span>
+                <span>✓ Cloudinary pipeline (if configured)</span>
               </div>
             </motion.div>
           )}

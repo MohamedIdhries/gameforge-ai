@@ -1,16 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+// Google Fonts (Geist) are unavailable in offline/CI environments.
+// We fall back to system-ui / monospace which are always available.
+// In production with internet access, add back next/font/google imports.
 
 export const metadata: Metadata = {
   title: "GameForge AI — Generate. Transform. Organize. Ship.",
@@ -21,7 +14,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className="h-full antialiased"
+      style={
+        {
+          "--font-geist-sans": "system-ui, -apple-system, sans-serif",
+          "--font-geist-mono": "ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, monospace",
+        } as React.CSSProperties
+      }
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
