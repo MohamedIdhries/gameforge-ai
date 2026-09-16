@@ -9,10 +9,12 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import Hologram3DViewer from '@/components/Hologram3DViewer';
 import GameHudSimulator from '@/components/GameHudSimulator';
+import HiggsfieldMotionStudio from '@/components/HiggsfieldMotionStudio';
+import MultiEngineExportStudio from '@/components/MultiEngineExportStudio';
 import { GameAsset } from '@/types/gameforge';
 import { getStoredAssets, saveAssets } from '@/lib/store';
 import { getOptimizedCloudinaryUrl, getGenerativeVariations, getSmartCropVariants } from '@/lib/cloudinary';
-import { ArrowLeft, Wand2, Scissors, Crop, Sparkles, Tag, Check, Copy, Download, Share2, Layers, ShieldCheck, Code, Eye, RefreshCcw, PackageCheck, Box, Gamepad2 } from 'lucide-react';
+import { ArrowLeft, Wand2, Scissors, Crop, Sparkles, Tag, Check, Copy, Download, Share2, Layers, ShieldCheck, Code, Eye, RefreshCcw, PackageCheck, Box, Gamepad2, Film, Cpu } from 'lucide-react';
 
 function AssetDetailContent() {
   const params = useParams();
@@ -23,13 +25,12 @@ function AssetDetailContent() {
   const isPackFlow = searchParams.get('pack') === 'true';
 
   const [asset, setAsset] = useState<GameAsset | null>(null);
-  const [activeTab, setActiveTab] = useState<'preview' | 'bg_removal' | 'smart_crop' | 'variations' | 'depth_3d' | 'game_hud' | 'engine_code'>('preview');
+  const [activeTab, setActiveTab] = useState<'preview' | 'bg_removal' | 'smart_crop' | 'variations' | 'higgsfield' | 'depth_3d' | 'game_hud' | 'engine_code'>('preview');
 
   const [selectedCropIndex, setSelectedCropIndex] = useState(0);
   const [selectedVariationIndex, setSelectedVariationIndex] = useState(0);
 
   const [copiedUrl, setCopiedUrl] = useState(false);
-  const [copiedCode, setCopiedCode] = useState(false);
 
   useEffect(() => {
     const assets = getStoredAssets();
@@ -66,28 +67,6 @@ function AssetDetailContent() {
     triggerConfetti();
     setTimeout(() => setCopiedUrl(false), 2000);
   };
-
-  // Generate Multi-Engine code snippets
-  const unitySnippet = `using UnityEngine;
-using UnityEngine.Networking;
-using System.Collections;
-
-public class CloudinaryAssetLoader : MonoBehaviour {
-    // Cloudinary optimized auto format & quality URL
-    private string assetUrl = "${getOptimizedCloudinaryUrl(asset.originalUrl)}";
-
-    IEnumerator Start() {
-        UnityWebRequest request = UnityWebRequestTexture.GetTexture(assetUrl);
-        yield return request.SendWebRequest();
-
-        if (request.result == UnityWebRequest.Result.Success) {
-            Texture2D texture = DownloadHandlerTexture.GetContent(request);
-            Sprite sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
-            GetComponent<SpriteRenderer>().sprite = sprite;
-            Debug.Log("GameForge Cloudinary Asset Loaded Successfully!");
-        }
-    }
-}`;
 
   const currentCrop = asset.smartCrops[selectedCropIndex] || asset.smartCrops[0];
   const currentVariation = asset.variations[selectedVariationIndex] || asset.variations[0];
@@ -246,6 +225,18 @@ public class CloudinaryAssetLoader : MonoBehaviour {
             </button>
 
             <button
+              onClick={() => setActiveTab('higgsfield')}
+              className={`px-3 py-2 rounded-xl flex items-center gap-1.5 transition-all ${
+                activeTab === 'higgsfield'
+                  ? 'bg-gradient-to-r from-cyan-500/30 to-purple-500/30 text-cyan-300 border border-cyan-400/50 shadow-md font-bold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Film className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Higgsfield AI Motion 🔥</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('depth_3d')}
               className={`px-3 py-2 rounded-xl flex items-center gap-1.5 transition-all ${
                 activeTab === 'depth_3d'
@@ -266,7 +257,7 @@ public class CloudinaryAssetLoader : MonoBehaviour {
               }`}
             >
               <Gamepad2 className="w-3.5 h-3.5 text-purple-400" />
-              <span>Game HUD Sandbox ✨</span>
+              <span>HUD Sandbox ✨</span>
             </button>
 
             <button
@@ -278,40 +269,21 @@ public class CloudinaryAssetLoader : MonoBehaviour {
               }`}
             >
               <Code className="w-3.5 h-3.5" />
-              <span>Unity C# Code</span>
+              <span>Engine Export 📦</span>
             </button>
           </div>
 
-          {/* MAIN IMAGE OR SPECIAL CANVAS BOX */}
+          {/* MAIN CANVAS BOX */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 relative flex flex-col items-center justify-center min-h-[420px] shadow-2xl overflow-hidden backdrop-blur-xl">
             
-            {activeTab === 'depth_3d' ? (
+            {activeTab === 'higgsfield' ? (
+              <HiggsfieldMotionStudio assetName={asset.name} originalImageUrl={asset.originalUrl} />
+            ) : activeTab === 'depth_3d' ? (
               <Hologram3DViewer imageUrl={getDisplayedImageUrl()} assetName={asset.name} />
             ) : activeTab === 'game_hud' ? (
               <GameHudSimulator imageUrl={getDisplayedImageUrl()} assetName={asset.name} assetType={asset.assetType} />
             ) : activeTab === 'engine_code' ? (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="w-full text-left space-y-3 font-mono text-xs"
-              >
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <span className="text-slate-400">Cloudinary Unity C# AssetLoader.cs</span>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(unitySnippet);
-                      setCopiedCode(true);
-                      setTimeout(() => setCopiedCode(false), 2000);
-                    }}
-                    className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-800 text-cyan-400 hover:bg-slate-700"
-                  >
-                    {copiedCode ? 'Copied C# Code!' : 'Copy Code'}
-                  </button>
-                </div>
-                <pre className="p-4 rounded-xl bg-slate-950 text-cyan-300 overflow-x-auto border border-slate-800 leading-relaxed">
-                  {unitySnippet}
-                </pre>
-              </motion.div>
+              <MultiEngineExportStudio asset={asset} />
             ) : (
               <AnimatePresence mode="wait">
                 <motion.div
@@ -439,9 +411,16 @@ public class CloudinaryAssetLoader : MonoBehaviour {
                 <span className="font-bold text-purple-300">{asset.style}</span>
               </div>
 
+              <div className="flex justify-between py-2 border-b border-slate-800">
+                <span className="text-slate-400">Higgsfield AI Engine</span>
+                <span className="font-bold text-cyan-300 flex items-center gap-1">
+                  <Film className="w-3.5 h-3.5" /> 60 FPS Video Motion Ready
+                </span>
+              </div>
+
               <div className="flex justify-between py-2">
                 <span className="text-slate-400">Target Engine</span>
-                <span className="font-bold text-cyan-400">Unity / Unreal Ready</span>
+                <span className="font-bold text-cyan-400">Unity / Unreal / Godot</span>
               </div>
             </div>
 
